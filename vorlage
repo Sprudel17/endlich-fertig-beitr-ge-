@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Nexus Musik & Blog</title>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #0af;
+    }
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .search {
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      width: 200px;
+    }
+    .stats {
+      color: #0af;
+      font-size: 14px;
+      text-align: right;
+      margin-top: 10px;
+    }
+    .category-nav {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .category-btn {
+      background: #222;
+      padding: 10px 20px;
+      border-radius: 20px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .category-btn:hover, .category-btn.active {
+      border-color: #0af;
+      background: #0af;
+      color: black;
+    }
+    .upload-trigger {
+      background: #0af;
+      color: black;
+      padding: 10px 20px;
+      border-radius: 20px;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    .terminal {
+      display: none;
+      background: #222;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    input, textarea, select, button {
+      display: block;
+      margin-top: 10px;
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+    }
+    .category-container {
+      display: none;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .category-container.active {
+      display: flex;
+    }
+    .post {
+      background: #1e1e1e;
+      width: 300px;
+      padding: 15px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .post audio {
+      width: 100%;
+      margin-top: 10px;
+    }
+    .post img {
+      width: 100%;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .views {
+      color: #0af;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .overlay-content {
+      background: #222;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 600px;
+      max-height: 80%;
+      overflow-y: auto;
+      font-size: 16px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+    .kanal-btn {
+      background: #0af;
+      color: black;
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 10px;
+      text-align: center;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Nexus Musik & Blog</h1>
+<div class="top-nav">
+  <input class="search" placeholder="Suche Musik oder Beiträge..." oninput="searchContent(this.value)" />
+  <div>
+    <div id="subscribeBtn" class="kanal-btn" onclick="toggleSubscribe()">Kanal abonnieren</div>
+    <div id="bellBtn" class="kanal-btn" onclick="toggleBell()">🔔 Glocke</div>
+    <div class="stats" id="stats">Abonnenten: 0 | Aufrufe: 0</div>
+  </div>
+</div>
+
+<div class="category-nav">
+  <div class="category-btn active" onclick="showCategory('musik', this)">Musik</div>
+  <div class="category-btn" onclick="showCategory('beitraege', this)">Beiträge</div>
+  <div class="upload-trigger" onclick="checkUploadCode()">Hochladen</div>
+</div>
+
+<div class="terminal" id="uploadTerminal">
+  <input id="uploadCode" placeholder="Code eingeben..." />
+  <button onclick="showUploadForm()">Bestätigen</button>
+</div>
+
+<div class="terminal" id="uploadForm" style="display:none">
+  <input id="author" placeholder="Dein Name" />
+  <input id="title" placeholder="Titel" />
+  <textarea id="content" rows="6" placeholder="Geschichte oder Beschreibung"></textarea>
+  <input type="file" id="image" accept="image/*" />
+  <input type="file" id="audio" accept="audio/*" />
+  <select id="category">
+    <option value="musik">Musik</option>
+    <option value="beitraege">Beiträge</option>
+  </select>
+  <button onclick="uploadPost()">Veröffentlichen</button>
+</div>
+
+<div id="musik" class="category-container active"></div>
+<div id="beitraege" class="category-container"></div>
+
+<div class="overlay" id="overlay" onclick="closeOverlay()">
+  <div class="overlay-content" id="overlayContent" onclick="event.stopPropagation()"></div>
+</div>
+
+<script>
+let views = {}, viewTimers = {}, totalViews = 0, subscribers = 0, hasSubscribed = false, bellActive = false;
+
+function toggleSubscribe() {
+  hasSubscribed = !hasSubscribed;
+  const btn = document.getElementById("subscribeBtn");
+  btn.textContent = hasSubscribed ? "Abonniert" : "Kanal abonnieren";
+  subscribers += hasSubscribed ? 1 : -1;
+  updateStats();
+}
+
+function toggleBell() {
+  bellActive = !bellActive;
+  document.getElementById("bellBtn").textContent = bellActive ? "🔔 Glocke aktiv" : "🔕 Glocke aus";
+}
+
+function updateStats() {
+  document.getElementById("stats").innerText = `Abonnenten: ${subscribers} | Aufrufe: ${totalViews}`;
+}
+
+function checkUploadCode() {
+  document.getElementById("uploadTerminal").style.display = "block";
+}
+
+function showUploadForm() {
+  const code = document.getElementById("uploadCode").value;
+  if (code === "chimaking") {
+    document.getElementById("uploadForm").style.display = "block";
+    document.getElementById("uploadTerminal").style.display = "none";
+  } else {
+    alert("Falscher Code!");
+  }
+}
+
+function uploadPost() {
+  const id = Date.now().toString();
+  const author = document.getElementById("author").value.trim();
+  const title = document.getElementById("title").value.trim();
+  const content = document.getElementById("content").value.trim();
+  const category = document.getElementById("category").value;
+  const imageFile = document.getElementById("image").files[0];
+  const audioFile = document.getElementById("audio").files[0];
+
+  if (!author || !title || !content) return alert("Alle Felder ausfüllen!");
+
+  const readerImage = new FileReader();
+  const readerAudio = new FileReader();
+  let imageData = "", audioData = "";
+
+  readerImage.onload = () => {
+    imageData = readerImage.result;
+    if (audioFile) readerAudio.readAsDataURL(audioFile);
+    else finishUpload();
+  };
+  readerAudio.onload = () => {
+    audioData = readerAudio.result;
+    finishUpload();
+  };
+
+  function finishUpload() {
+    const postData = { id, author, title, content, image: imageData, audio: audioData, category, views: 0 };
+    localStorage.setItem(`post-${id}`, JSON.stringify(postData));
+    renderPost(postData);
+    if (bellActive) alert(`🔔 Neues hochgeladen: ${title}`);
+  }
+
+  if (imageFile) readerImage.readAsDataURL(imageFile);
+  else finishUpload();
+}
+
+function renderPost(data) {
+  views[data.id] = data.views;
+  const container = document.getElementById(data.category);
+  const div = document.createElement("div");
+  div.className = "post";
+  div.dataset.id = data.id;
+  div.innerHTML = `
+    ${data.image ? `<img src="${data.image}" />` : ""}
+    <strong>${data.author}</strong>
+    <h3>${data.title}</h3>
+    <p>${data.content}</p>
+    ${data.audio ? `<audio controls controlsList="nodownload" src="${data.audio}"></audio>` : ""}
+    <div class="views" id="views-${data.id}">Aufrufe: ${data.views}</div>
+    <button onclick="deletePost('${data.id}')">Löschen</button>
+  `;
+  div.addEventListener("click", () => showOverlay(data.title, data.content, data.image, data.author, data.id, data.audio));
+  div.addEventListener("mouseenter", () => startViewCount(data.id));
+  container.appendChild(div);
+  updateStats();
+}
+
+function startViewCount(id) {
+  if (viewTimers[id]) return;
+  viewTimers[id] = setTimeout(() => {
+    views[id]++;
+    document.getElementById(`views-${id}`).textContent = "Aufrufe: " + views[id];
+    totalViews++;
+    updateStats();
+    saveAllPosts();
+    viewTimers[id] = null;
+  }, 10000);
+}
+
+function deletePost(id) {
+  localStorage.removeItem(`post-${id}`);
+  document.querySelector(`[data-id='${id}']`).remove();
+  updateStats();
+}
+
+function showOverlay(title, content, image, author, id, audio) {
+  const div = document.getElementById("overlayContent");
+  div.innerHTML = `
+    ${image ? `<img src="${image}" style="width:100%; border-radius:10px;" /><br><br>` : ""}
+    <strong>${author}</strong>
+    <h3>${title}</h3>
+    <p>${content}</p>
+    ${audio ? `<audio controls controlsList='nodownload' src='${audio}' style='width:100%'></audio>` : ""}
+    <div class="views">Aufrufe: ${views[id]}</div>
+  `;
+  document.getElementById("overlay").style.display = "flex";
+}
+
+function closeOverlay() {
+  document.getElementById("overlay").style.display = "none";
+}
+
+function showCategory(cat, btn) {
+  document.querySelectorAll('.category-container').forEach(c => c.classList.remove('active'));
+  document.getElementById(cat).classList.add('active');
+  document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function searchContent(query) {
+  query = query.toLowerCase();
+  document.querySelectorAll('.post').forEach(post => {
+    const text = post.innerText.toLowerCase();
+    post.style.display = text.includes(query) ? 'block' : 'none';
+  });
+}
+
+function saveAllPosts() {
+  document.querySelectorAll(".post").forEach(post => {
+    const id = post.dataset.id;
+    const postData = {
+      id,
+      author: post.querySelector("strong").innerText,
+      title: post.querySelector("h3").innerText,
+      content: post.querySelector("p").innerText,
+      image: post.querySelector("img")?.src || "",
+      audio: post.querySelector("audio")?.src || "",
+      category: post.closest(".category-container").id,
+      views: views[id] || 0
+    };
+    localStorage.setItem(`post-${id}`, JSON.stringify(postData));
+  });
+}
+
+window.addEventListener("load", () => {
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith("post-")) {
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        renderPost(data);
+      } catch {}
+    }
+  });
+});
+</script>
+</body>
+</html>
